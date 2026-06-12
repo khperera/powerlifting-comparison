@@ -28,9 +28,9 @@ body {
 .bg-glow {
   position: fixed; inset: 0; z-index: -1; pointer-events: none;
   background:
-    radial-gradient(900px 500px at 12% -10%, rgba(34, 211, 238, 0.10), transparent 60%),
-    radial-gradient(900px 500px at 95% 0%, rgba(167, 139, 250, 0.10), transparent 60%),
-    radial-gradient(700px 700px at 50% 120%, rgba(244, 114, 182, 0.07), transparent 60%);
+    radial-gradient(900px 500px at 12% -10%, rgba(34, 211, 238, 0.04), transparent 60%),
+    radial-gradient(900px 500px at 95% 0%, rgba(167, 139, 250, 0.04), transparent 60%),
+    radial-gradient(700px 700px at 50% 120%, rgba(244, 114, 182, 0.03), transparent 60%);
 }
 
 /* ---------- header ---------- */
@@ -133,7 +133,7 @@ main { padding: 28px clamp(16px, 4vw, 48px) 12px; max-width: 1280px; margin: 0 a
   border: 1px solid var(--border-bright); border-radius: 50%;
   width: 44px; height: 44px; display: grid; place-items: center;
   background: rgba(10, 14, 24, 0.9);
-  box-shadow: 0 0 24px rgba(120, 150, 255, 0.18);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.3);
 }
 
 /* ---------- fields ---------- */
@@ -162,28 +162,30 @@ input[type="number"]:focus { outline: none; border-color: var(--accent-a2); box-
 }
 input[type="range"] {
   width: 100%; appearance: none; -webkit-appearance: none; height: 26px; background: transparent; cursor: pointer;
+  overflow: visible;
 }
 input[type="range"]::-webkit-slider-runnable-track {
-  height: 6px; border-radius: 3px;
+  height: 5px; border-radius: 3px;
   background: linear-gradient(90deg, var(--accent-a2), var(--accent-a));
-  opacity: .55;
+  opacity: .45;
 }
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none; appearance: none;
-  width: 18px; height: 18px; border-radius: 50%; margin-top: -6px;
+  width: 20px; height: 20px; border-radius: 50%; margin-top: -7px;
   background: #fff;
   border: 2px solid var(--accent-a);
-  box-shadow: 0 0 12px rgba(34, 211, 238, 0.7);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  position: relative; z-index: 2;
 }
 input[type="range"]::-moz-range-track {
-  height: 6px; border-radius: 3px;
+  height: 5px; border-radius: 3px;
   background: linear-gradient(90deg, var(--accent-a2), var(--accent-a));
-  opacity: .55;
+  opacity: .45;
 }
 input[type="range"]::-moz-range-thumb {
-  width: 16px; height: 16px; border-radius: 50%;
+  width: 20px; height: 20px; border-radius: 50%;
   background: #fff; border: 2px solid var(--accent-a);
-  box-shadow: 0 0 12px rgba(34, 211, 238, 0.7);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
 }
 
 /* ---------- results ---------- */
@@ -208,8 +210,8 @@ input[type="range"]::-moz-range-thumb {
   background: rgba(255, 255, 255, 0.06); border: 1px solid var(--border);
 }
 .pct-fill { height: 100%; width: 0%; border-radius: 4px; transition: width .4s cubic-bezier(.2, .8, .2, 1); }
-.fill-a { background: linear-gradient(90deg, var(--accent-a2), var(--accent-a)); box-shadow: 0 0 14px rgba(34, 211, 238, .6); }
-.fill-b { background: linear-gradient(90deg, var(--accent-b2), var(--accent-b)); box-shadow: 0 0 14px rgba(244, 114, 182, .6); }
+.fill-a { background: linear-gradient(90deg, var(--accent-a2), var(--accent-a)); }
+.fill-b { background: linear-gradient(90deg, var(--accent-b2), var(--accent-b)); }
 
 .equiv-box {
   margin-top: 20px; padding: 16px;
@@ -241,7 +243,7 @@ input[type="range"]::-moz-range-thumb {
 .equiv-tile-active {
   border-color: var(--border-bright);
   background: linear-gradient(135deg, rgba(99, 102, 241, 0.16), rgba(34, 211, 238, 0.08));
-  box-shadow: 0 0 16px rgba(80, 140, 255, 0.15);
+  box-shadow: none;
 }
 .tile-lift {
   font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
