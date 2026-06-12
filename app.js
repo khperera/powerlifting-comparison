@@ -398,26 +398,26 @@ function renderMe() {
       ? `That's <strong>${fmtW(gap, 1)}</strong> over your current estimated 1RM.`
       : `You're already <strong>${fmtW(-gap, 1)}</strong> past it.`);
 
-  // chart 2: bodyweight needed for current 1RM to hit each percentile
-  const ps2 = [], bws = [];
-  let lastOk = null;
-  for (let p = 1; p <= 99; p++) {
-    const r = bodyweightForPercentile(m.sex, m.lift, p, oneRM);
-    if (r.status === "ok") { ps2.push(p); bws.push(r.bw); lastOk = p; }
+  // chart 2: percentile of the current 1RM at every bodyweight
+  const grid = DATA[m.sex][m.lift].bw;
+  const bws = [], ps2 = [];
+  for (let bw = grid[0]; bw <= grid[grid.length - 1] + 1e-9; bw += 1) {
+    bws.push(bw);
+    ps2.push(percentileOf(m.sex, m.lift, bw, oneRM));
   }
-  const markerP = clamp(pct, 1, 99);
-  if (ps2.length > 1) {
-    lineChart($("me-chart-bw"), {
-      series: [{ xs: ps2, ys: bws.map(toDisp), color: "#a78bfa", color2: "#f472b6", fill: true }],
-      marker: { x: markerP, y: toDisp(m.bw), color: "#22d3ee", label: `you — ${toDisp(m.bw).toFixed(1)} ${unit}` },
-      xLabel: "percentile", yLabel: `bodyweight (${unit})`,
-      fmtX: (v) => Math.round(v),
-      fmtY: (v) => Math.round(v),
-      tip: (x, i) => `p${Math.round(x)} needs ≤ ${toDisp(bws[i]).toFixed(1)} ${unit} bodyweight<br>at your ${fmtW(oneRM, 0)} 1RM`,
-    });
-  } else {
-    $("me-chart-bw").innerHTML = `<p class="callout">Not enough range in the data for this 1RM.</p>`;
-  }
+  lineChart($("me-chart-bw"), {
+    series: [{ xs: bws.map(toDisp), ys: ps2, color: "#a78bfa", color2: "#f472b6", fill: true }],
+    marker: {
+      x: toDisp(clamp(m.bw, grid[0], grid[grid.length - 1])),
+      y: pct,
+      color: "#22d3ee",
+      label: `you — ${ordinal(pct)} @ ${toDisp(m.bw).toFixed(1)} ${unit}`,
+    },
+    xLabel: `bodyweight (${unit})`, yLabel: "percentile",
+    fmtX: (v) => Math.round(v),
+    fmtY: (v) => Math.round(v),
+    tip: (x, i) => `at ${x.toFixed(0)} ${unit} bodyweight<br>your ${fmtW(oneRM, 0)} 1RM = ${ordinal(ps2[i])} percentile`,
+  });
 
   const r90 = bodyweightForPercentile(m.sex, m.lift, m.target, oneRM);
   $("m-bw-text").innerHTML =
