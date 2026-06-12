@@ -298,6 +298,24 @@ function bindSlider(id, outId, obj, key, render) {
   });
 }
 
+/* ---------------- cross-lift equivalents ----------------
+   Same percentile, same person → equivalent 1RM in every lift. */
+function renderEquivTiles(elId, sex, bw, pct, reps, rpe, activeLift) {
+  const el = $(elId);
+  el.innerHTML = "";
+  for (const lift of ["squat", "bench", "deadlift"]) {
+    const oneRM = weightAtPercentile(sex, lift, bw, pct);
+    const set = setWeightFor1RM(oneRM, reps, rpe);
+    const tile = document.createElement("div");
+    tile.className = "equiv-tile" + (lift === activeLift ? " equiv-tile-active" : "");
+    tile.innerHTML =
+      `<span class="tile-lift">${lift}</span>` +
+      `<span class="tile-1rm">${toDisp(oneRM).toFixed(1)} <em>${unit}</em></span>` +
+      `<span class="tile-set">${toDisp(set).toFixed(1)} × ${reps} @ ${rpe}</span>`;
+    el.appendChild(tile);
+  }
+}
+
 /* ---------------- compare mode ---------------- */
 function renderCompare() {
   const { a, b } = state;
@@ -320,6 +338,8 @@ function renderCompare() {
     `${toDisp(bSet).toFixed(1)} ${unit} × ${b.reps} @ RPE ${b.rpe}`;
   $("b-1rm").textContent = fmtW(b1rm, 1);
   $("b-bar").style.width = `${clamp(pct, 0, 100)}%`;
+
+  renderEquivTiles("b-equiv-tiles", b.sex, b.bw, clamp(pct, 1, 99), b.reps, b.rpe, lift);
 
   // chart: required set weight vs reps (1..12), at B's bodyweight, B's RPE
   const reps = [], need = [];
@@ -348,6 +368,8 @@ function renderMe() {
   $("m-pct-note").textContent =
     `of ${m.sex === "M" ? "male" : "female"} raw competitors near ${toDisp(m.bw).toFixed(0)} ${unit}`;
   $("m-bar").style.width = `${clamp(pct, 0, 100)}%`;
+
+  renderEquivTiles("m-equiv-tiles", m.sex, m.bw, clamp(pct, 1, 99), m.reps, m.rpe, m.lift);
 
   // chart 1: 1RM needed at each percentile for this bw/sex/lift
   const ps = [], ws = [];
