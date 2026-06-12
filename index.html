@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Iron Percentile — Strength Comparison</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="bg-glow"></div>
+
+<header>
+  <div class="brand">
+    <div class="brand-mark">▮▮▮</div>
+    <div>
+      <h1>IRON&nbsp;PERCENTILE</h1>
+      <p class="tagline">strength, ranked against 500k+ real lifters</p>
+    </div>
+  </div>
+  <div class="header-controls">
+    <div class="seg seg-small" id="unitToggle">
+      <button data-unit="kg" class="active">kg</button>
+      <button data-unit="lb">lb</button>
+    </div>
+    <nav class="seg" id="modeTabs">
+      <button data-mode="compare" class="active">⇄ Compare</button>
+      <button data-mode="me">◎ My Percentile</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+<!-- ============ MODE 1: COMPARE ============ -->
+<section id="mode-compare" class="mode active">
+  <div class="compare-grid">
+
+    <div class="card lifter-a">
+      <div class="card-head">
+        <span class="badge badge-a">LIFTER A</span>
+        <span class="card-sub">the lifter to match</span>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Sex</label>
+          <div class="seg" data-field="a-sex">
+            <button data-val="M" class="active">Male</button>
+            <button data-val="F">Female</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>Bodyweight <span class="unit-label">kg</span></label>
+          <input type="number" id="a-bw" value="90" min="30" max="250" step="0.5">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Lift</label>
+        <div class="seg seg-3" data-field="lift">
+          <button data-val="squat">Squat</button>
+          <button data-val="bench" class="active">Bench</button>
+          <button data-val="deadlift">Deadlift</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Set weight <span class="unit-label">kg</span></label>
+        <input type="number" id="a-weight" value="100" min="1" step="2.5">
+      </div>
+
+      <div class="field slider-field">
+        <label>Reps <output id="a-reps-out">5</output></label>
+        <input type="range" id="a-reps" min="1" max="12" value="5" step="1">
+      </div>
+      <div class="field slider-field">
+        <label>RPE <output id="a-rpe-out">10</output></label>
+        <input type="range" id="a-rpe" min="6" max="10" value="10" step="0.5">
+      </div>
+
+      <div class="result-strip">
+        <div class="stat">
+          <span class="stat-label">est. 1RM</span>
+          <span class="stat-value" id="a-1rm">—</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">percentile</span>
+          <span class="stat-value grad-a" id="a-pct">—</span>
+        </div>
+      </div>
+      <div class="pct-bar"><div class="pct-fill fill-a" id="a-bar"></div></div>
+    </div>
+
+    <div class="vs-divider"><span>VS</span></div>
+
+    <div class="card lifter-b">
+      <div class="card-head">
+        <span class="badge badge-b">LIFTER B</span>
+        <span class="card-sub">you — what do you need?</span>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Sex</label>
+          <div class="seg" data-field="b-sex">
+            <button data-val="M">Male</button>
+            <button data-val="F" class="active">Female</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>Bodyweight <span class="unit-label">kg</span></label>
+          <input type="number" id="b-bw" value="63" min="30" max="250" step="0.5">
+        </div>
+      </div>
+
+      <div class="field slider-field">
+        <label>Target reps <output id="b-reps-out">5</output></label>
+        <input type="range" id="b-reps" min="1" max="12" value="5" step="1">
+      </div>
+      <div class="field slider-field">
+        <label>Target RPE <output id="b-rpe-out">10</output></label>
+        <input type="range" id="b-rpe" min="6" max="10" value="10" step="0.5">
+      </div>
+
+      <div class="equiv-box">
+        <p class="equiv-lead">to match Lifter A's <strong id="b-pct-echo">—</strong> percentile <span id="b-lift-echo"></span>:</p>
+        <p class="equiv-main"><span id="b-target">—</span></p>
+        <p class="equiv-sub">≈ <span id="b-1rm">—</span> 1RM equivalent</p>
+      </div>
+      <div class="pct-bar"><div class="pct-fill fill-b" id="b-bar"></div></div>
+
+      <div class="lift-equivs" id="b-equivs">
+        <p class="equivs-head">same percentile, all three lifts (for you):</p>
+        <div class="equiv-tiles" id="b-equiv-tiles"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card chart-card">
+    <h3>Required set weight vs. reps <span class="h3-sub">to match Lifter A's percentile, at your bodyweight (RPE as set above)</span></h3>
+    <div id="compare-chart" class="chart"></div>
+  </div>
+</section>
+
+<!-- ============ MODE 2: MY PERCENTILE ============ -->
+<section id="mode-me" class="mode">
+  <div class="me-grid">
+    <div class="card">
+      <div class="card-head">
+        <span class="badge badge-b">YOUR SET</span>
+        <span class="card-sub">one hard set → full picture</span>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Sex</label>
+          <div class="seg" data-field="m-sex">
+            <button data-val="M" class="active">Male</button>
+            <button data-val="F">Female</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>Bodyweight <span class="unit-label">kg</span></label>
+          <input type="number" id="m-bw" value="82.5" min="30" max="250" step="0.5">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Lift</label>
+        <div class="seg seg-3" data-field="m-lift">
+          <button data-val="squat" class="active">Squat</button>
+          <button data-val="bench">Bench</button>
+          <button data-val="deadlift">Deadlift</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Set weight <span class="unit-label">kg</span></label>
+        <input type="number" id="m-weight" value="140" min="1" step="2.5">
+      </div>
+
+      <div class="field slider-field">
+        <label>Reps <output id="m-reps-out">5</output></label>
+        <input type="range" id="m-reps" min="1" max="12" value="5" step="1">
+      </div>
+      <div class="field slider-field">
+        <label>RPE <output id="m-rpe-out">9</output></label>
+        <input type="range" id="m-rpe" min="6" max="10" value="9" step="0.5">
+      </div>
+
+      <div class="hero-result">
+        <div class="hero-stat">
+          <span class="stat-label">estimated 1RM</span>
+          <span class="hero-value" id="m-1rm">—</span>
+        </div>
+        <div class="hero-stat">
+          <span class="stat-label">your percentile</span>
+          <span class="hero-value grad-b" id="m-pct">—</span>
+          <span class="hero-note" id="m-pct-note"></span>
+        </div>
+      </div>
+      <div class="pct-bar"><div class="pct-fill fill-b" id="m-bar"></div></div>
+
+      <div class="lift-equivs">
+        <p class="equivs-head">your other lifts <em>should</em> be (same percentile):</p>
+        <div class="equiv-tiles" id="m-equiv-tiles"></div>
+      </div>
+    </div>
+
+    <div class="stack">
+      <div class="card chart-card">
+        <h3>Strength curve <span class="h3-sub">1RM needed at every percentile — your bodyweight &amp; sex</span></h3>
+        <div id="me-chart-curve" class="chart"></div>
+        <div class="field slider-field inline-slider">
+          <label>Target percentile <output id="m-target-out">90</output></label>
+          <input type="range" id="m-target" min="1" max="99" value="90" step="1">
+        </div>
+        <p class="callout" id="m-target-text">—</p>
+      </div>
+
+      <div class="card chart-card">
+        <h3>Bodyweight leverage <span class="h3-sub">bodyweight at which your current 1RM hits each percentile</span></h3>
+        <div id="me-chart-bw" class="chart"></div>
+        <p class="callout" id="m-bw-text">—</p>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <p id="foot-note">Ground truth: OpenPowerlifting database — raw (unequipped) competition entries, best lift per lifter.</p>
+</footer>
+
+<script src="percentiles.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
