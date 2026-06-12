@@ -55,6 +55,14 @@ h1 {
 }
 .tagline { font-size: 12px; color: var(--text-dim); letter-spacing: 0.4px; }
 .header-controls { display: flex; gap: 12px; align-items: center; }
+.unit-switch { display: flex; align-items: center; gap: 8px; }
+.unit-switch-label {
+  font-size: 10px; font-weight: 700; letter-spacing: 1.5px; color: var(--text-dim);
+}
+.unit-switch .seg button.active {
+  background: linear-gradient(135deg, rgba(244, 114, 182, 0.8), rgba(167, 139, 250, 0.6));
+  box-shadow: 0 2px 14px rgba(244, 114, 182, 0.35);
+}
 
 /* ---------- segmented controls ---------- */
 .seg {

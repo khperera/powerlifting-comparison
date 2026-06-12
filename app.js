@@ -463,16 +463,22 @@ function init() {
     });
   });
 
-  // unit toggle
+  // unit toggle (persisted across visits)
+  const setUnit = (u) => {
+    unit = u;
+    document.querySelectorAll("#unitToggle button").forEach((b) =>
+      b.classList.toggle("active", b.dataset.unit === u));
+    try { localStorage.setItem("ironpct-unit", u); } catch (e) { /* private mode */ }
+    refreshNumberInputs();
+    renderAll();
+  };
   document.querySelectorAll("#unitToggle button").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      document.querySelectorAll("#unitToggle button").forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      unit = btn.dataset.unit;
-      refreshNumberInputs();
-      renderAll();
-    });
+    btn.addEventListener("click", () => setUnit(btn.dataset.unit));
   });
+  try {
+    const saved = localStorage.getItem("ironpct-unit");
+    if (saved === "lb" || saved === "kg") setUnit(saved);
+  } catch (e) { /* private mode */ }
 
   segInit("a-sex", (v) => { state.a.sex = v; renderAll(); });
   segInit("b-sex", (v) => { state.b.sex = v; renderAll(); });
