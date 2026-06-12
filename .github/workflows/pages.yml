@@ -1,0 +1,25 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main, claude/strength-percentile-app-ojno4u]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pages-publish
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Publishing to the gh-pages branch auto-enables GitHub Pages;
+      # actions/configure-pages enablement needs admin rights GITHUB_TOKEN lacks.
+      - uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./app

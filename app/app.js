@@ -298,6 +298,24 @@ function bindSlider(id, outId, obj, key, render) {
   });
 }
 
+/* ---------------- cross-lift equivalents ----------------
+   Same percentile, same person → equivalent 1RM in every lift. */
+function renderEquivTiles(elId, sex, bw, pct, reps, rpe, activeLift) {
+  const el = $(elId);
+  el.innerHTML = "";
+  for (const lift of ["squat", "bench", "deadlift"]) {
+    const oneRM = weightAtPercentile(sex, lift, bw, pct);
+    const set = setWeightFor1RM(oneRM, reps, rpe);
+    const tile = document.createElement("div");
+    tile.className = "equiv-tile" + (lift === activeLift ? " equiv-tile-active" : "");
+    tile.innerHTML =
+      `<span class="tile-lift">${lift}</span>` +
+      `<span class="tile-1rm">${toDisp(oneRM).toFixed(1)} <em>${unit}</em></span>` +
+      `<span class="tile-set">${toDisp(set).toFixed(1)} × ${reps} @ ${rpe}</span>`;
+    el.appendChild(tile);
+  }
+}
+
 /* ---------------- compare mode ---------------- */
 function renderCompare() {
   const { a, b } = state;
@@ -320,6 +338,8 @@ function renderCompare() {
     `${toDisp(bSet).toFixed(1)} ${unit} × ${b.reps} @ RPE ${b.rpe}`;
   $("b-1rm").textContent = fmtW(b1rm, 1);
   $("b-bar").style.width = `${clamp(pct, 0, 100)}%`;
+
+  renderEquivTiles("b-equiv-tiles", b.sex, b.bw, clamp(pct, 1, 99), b.reps, b.rpe, lift);
 
   // chart: required set weight vs reps (1..12), at B's bodyweight, B's RPE
   const reps = [], need = [];
@@ -349,6 +369,8 @@ function renderMe() {
     `of ${m.sex === "M" ? "male" : "female"} raw competitors near ${toDisp(m.bw).toFixed(0)} ${unit}`;
   $("m-bar").style.width = `${clamp(pct, 0, 100)}%`;
 
+  renderEquivTiles("m-equiv-tiles", m.sex, m.bw, clamp(pct, 1, 99), m.reps, m.rpe, m.lift);
+
   // chart 1: 1RM needed at each percentile for this bw/sex/lift
   const ps = [], ws = [];
   for (let p = 1; p <= 99; p++) {
@@ -376,26 +398,26 @@ function renderMe() {
       ? `That's <strong>${fmtW(gap, 1)}</strong> over your current estimated 1RM.`
       : `You're already <strong>${fmtW(-gap, 1)}</strong> past it.`);
 
-  // chart 2: bodyweight needed for current 1RM to hit each percentile
-  const ps2 = [], bws = [];
-  let lastOk = null;
-  for (let p = 1; p <= 99; p++) {
-    const r = bodyweightForPercentile(m.sex, m.lift, p, oneRM);
-    if (r.status === "ok") { ps2.push(p); bws.push(r.bw); lastOk = p; }
+  // chart 2: percentile of the current 1RM at every bodyweight
+  const grid = DATA[m.sex][m.lift].bw;
+  const bws = [], ps2 = [];
+  for (let bw = grid[0]; bw <= grid[grid.length - 1] + 1e-9; bw += 1) {
+    bws.push(bw);
+    ps2.push(percentileOf(m.sex, m.lift, bw, oneRM));
   }
-  const markerP = clamp(pct, 1, 99);
-  if (ps2.length > 1) {
-    lineChart($("me-chart-bw"), {
-      series: [{ xs: ps2, ys: bws.map(toDisp), color: "#a78bfa", color2: "#f472b6", fill: true }],
-      marker: { x: markerP, y: toDisp(m.bw), color: "#22d3ee", label: `you — ${toDisp(m.bw).toFixed(1)} ${unit}` },
-      xLabel: "percentile", yLabel: `bodyweight (${unit})`,
-      fmtX: (v) => Math.round(v),
-      fmtY: (v) => Math.round(v),
-      tip: (x, i) => `p${Math.round(x)} needs ≤ ${toDisp(bws[i]).toFixed(1)} ${unit} bodyweight<br>at your ${fmtW(oneRM, 0)} 1RM`,
-    });
-  } else {
-    $("me-chart-bw").innerHTML = `<p class="callout">Not enough range in the data for this 1RM.</p>`;
-  }
+  lineChart($("me-chart-bw"), {
+    series: [{ xs: bws.map(toDisp), ys: ps2, color: "#a78bfa", color2: "#f472b6", fill: true }],
+    marker: {
+      x: toDisp(clamp(m.bw, grid[0], grid[grid.length - 1])),
+      y: pct,
+      color: "#22d3ee",
+      label: `you — ${ordinal(pct)} @ ${toDisp(m.bw).toFixed(1)} ${unit}`,
+    },
+    xLabel: `bodyweight (${unit})`, yLabel: "percentile",
+    fmtX: (v) => Math.round(v),
+    fmtY: (v) => Math.round(v),
+    tip: (x, i) => `at ${x.toFixed(0)} ${unit} bodyweight<br>your ${fmtW(oneRM, 0)} 1RM = ${ordinal(ps2[i])} percentile`,
+  });
 
   const r90 = bodyweightForPercentile(m.sex, m.lift, m.target, oneRM);
   $("m-bw-text").innerHTML =
@@ -441,16 +463,22 @@ function init() {
     });
   });
 
-  // unit toggle
+  // unit toggle (persisted across visits)
+  const setUnit = (u) => {
+    unit = u;
+    document.querySelectorAll("#unitToggle button").forEach((b) =>
+      b.classList.toggle("active", b.dataset.unit === u));
+    try { localStorage.setItem("ironpct-unit", u); } catch (e) { /* private mode */ }
+    refreshNumberInputs();
+    renderAll();
+  };
   document.querySelectorAll("#unitToggle button").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      document.querySelectorAll("#unitToggle button").forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      unit = btn.dataset.unit;
-      refreshNumberInputs();
-      renderAll();
-    });
+    btn.addEventListener("click", () => setUnit(btn.dataset.unit));
   });
+  try {
+    const saved = localStorage.getItem("ironpct-unit");
+    if (saved === "lb" || saved === "kg") setUnit(saved);
+  } catch (e) { /* private mode */ }
 
   segInit("a-sex", (v) => { state.a.sex = v; renderAll(); });
   segInit("b-sex", (v) => { state.b.sex = v; renderAll(); });

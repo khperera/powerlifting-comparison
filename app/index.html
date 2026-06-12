@@ -18,9 +18,12 @@
     </div>
   </div>
   <div class="header-controls">
-    <div class="seg seg-small" id="unitToggle">
-      <button data-unit="kg" class="active">kg</button>
-      <button data-unit="lb">lb</button>
+    <div class="unit-switch">
+      <span class="unit-switch-label">UNITS</span>
+      <div class="seg seg-small" id="unitToggle">
+        <button data-unit="kg" class="active">kg</button>
+        <button data-unit="lb">lb</button>
+      </div>
     </div>
     <nav class="seg" id="modeTabs">
       <button data-mode="compare" class="active">⇄ Compare</button>
@@ -127,6 +130,11 @@
         <p class="equiv-sub">≈ <span id="b-1rm">—</span> 1RM equivalent</p>
       </div>
       <div class="pct-bar"><div class="pct-fill fill-b" id="b-bar"></div></div>
+
+      <div class="lift-equivs" id="b-equivs">
+        <p class="equivs-head">same percentile, all three lifts (for you):</p>
+        <div class="equiv-tiles" id="b-equiv-tiles"></div>
+      </div>
     </div>
   </div>
 
@@ -194,6 +202,11 @@
         </div>
       </div>
       <div class="pct-bar"><div class="pct-fill fill-b" id="m-bar"></div></div>
+
+      <div class="lift-equivs">
+        <p class="equivs-head">your other lifts <em>should</em> be (same percentile):</p>
+        <div class="equiv-tiles" id="m-equiv-tiles"></div>
+      </div>
     </div>
 
     <div class="stack">
@@ -208,7 +221,7 @@
       </div>
 
       <div class="card chart-card">
-        <h3>Bodyweight leverage <span class="h3-sub">bodyweight at which your current 1RM hits each percentile</span></h3>
+        <h3>Bodyweight leverage <span class="h3-sub">where your current 1RM ranks at every bodyweight</span></h3>
         <div id="me-chart-bw" class="chart"></div>
         <p class="callout" id="m-bw-text">—</p>
       </div>

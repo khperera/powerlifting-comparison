@@ -7,6 +7,11 @@ and translates strength **across sex and bodyweight** via percentiles.
 
 ## Run it
 
+Live: **https://khperera.github.io/powerlifting-comparison/** (deployed from
+the `gh-pages` branch by `.github/workflows/pages.yml`).
+
+Locally:
+
 ```
 cd app
 python3 -m http.server 8000   # or: npx http-server
