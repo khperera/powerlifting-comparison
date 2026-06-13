@@ -345,9 +345,13 @@ function heatColor(t, main, bg) {
 }
 
 /**
- * Heat map of where the two non-fixed lifts land, given the fixed lift's
- * percentile, for a lifter of this sex/bodyweight.
- * opts: { sex, bw, fixedLift, fixedPct, axes:[xLift,yLift], actual?:{[lift]:1RM} }
+ * Heat map over two lifts' joint distribution for a lifter of this sex/bw,
+ * via a Gaussian copula on the marginal percentile tables.
+ *  - Conditional  (fixedLift given): where the other two land if `fixedLift`
+ *    sits at `fixedPct`.
+ *  - Unconditional (no fixedLift): the plain 2-D projection of the two lifts,
+ *    centred on the typical (p50/p50) competitor.
+ * opts: { sex, bw, axes:[xLift,yLift], fixedLift?, fixedPct?, actual?:{[lift]:1RM} }
  */
 function heatMap(el, opts) {
   const ns = "http://www.w3.org/2000/svg";
@@ -356,14 +360,18 @@ function heatMap(el, opts) {
   const c = sexC(opts.sex);
   const [lx, ly] = opts.axes;
 
-  const z0 = probit(clamp(opts.fixedPct, 0.5, 99.5) / 100);
-  const m = RHO * z0;                 // conditional mean (both axes)
-  const v = 1 - RHO * RHO;            // conditional variance
-  const r = RHO / (1 + RHO);          // conditional correlation between the two
+  const conditional = opts.fixedLift != null;
+  let m, v, r;                        // mean (both axes), variance, correlation
+  if (conditional) {
+    const z0 = probit(clamp(opts.fixedPct, 0.5, 99.5) / 100);
+    m = RHO * z0; v = 1 - RHO * RHO; r = RHO / (1 + RHO);
+  } else {
+    m = 0; v = 1; r = RHO;
+  }
   const sd = Math.sqrt(v);
 
-  const zLo = clamp(m - 3 * sd, probit(0.01), probit(0.985));
-  const zHi = clamp(m + 3 * sd, probit(0.015), probit(0.99));
+  const zLo = conditional ? clamp(m - 3 * sd, probit(0.01), probit(0.985)) : probit(0.02);
+  const zHi = conditional ? clamp(m + 3 * sd, probit(0.015), probit(0.99)) : probit(0.98);
   const N = 30;                       // cells per axis
   const zAt = (i) => zLo + (zHi - zLo) * (i / (N - 1));
   const pAtZ = (z) => clamp(normCdf(z) * 100, 1, 99);
@@ -445,7 +453,8 @@ function heatMap(el, opts) {
     const ay = (H - padB) - ((clamp(zy, zLo, zHi) - zLo) / (zHi - zLo)) * (H - padT - padB);
     mk("circle", { cx: ax, cy: ay, r: 7, fill: c.main, opacity: 0.3 });
     mk("circle", { cx: ax, cy: ay, r: 4, fill: "#fff", stroke: c.main, "stroke-width": 2 });
-    mk("text", { x: ax + 10, y: ay + 4, fill: c.main, "font-size": 11, "font-weight": 700, "font-family": "monospace" }).textContent = "you";
+    // label below-left so it doesn't collide with the "typical" label above-right
+    mk("text", { x: ax - 9, y: ay + 16, "text-anchor": "end", fill: c.main, "font-size": 11, "font-weight": 700, "font-family": "monospace" }).textContent = "you";
   }
 
   el.appendChild(svg);
@@ -764,6 +773,11 @@ function renderTotal() {
     `Holding a <strong>${ordinal(t.target)}</strong> total (<strong>${fmtW(allocTotal, 0)}</strong>): ` +
     `drag any lift and the other two move to keep the total fixed. ` +
     `A bigger squat &ldquo;buys&rdquo; a smaller bench &amp; deadlift, and vice-versa.`;
+
+  // --- the three 2-D projections of your lifts on the population cloud ---
+  heatMap($("t-heat-sb"), { sex: t.sex, bw: t.bw, axes: ["squat", "bench"], actual: oneRMs });
+  heatMap($("t-heat-sd"), { sex: t.sex, bw: t.bw, axes: ["squat", "deadlift"], actual: oneRMs });
+  heatMap($("t-heat-bd"), { sex: t.sex, bw: t.bw, axes: ["bench", "deadlift"], actual: oneRMs });
 }
 
 /* ---------------- mode dispatch ---------------- */

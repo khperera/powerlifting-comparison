@@ -294,6 +294,17 @@ input[type="range"]::-moz-range-thumb {
 
 /* ---------- heat map ---------- */
 .chart.heat svg { max-width: 520px; margin: 0 auto; }
+.heat-trio { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.heat-trio .chart.heat svg { max-width: none; }
+.heat-cell {
+  padding: 10px; border-radius: 12px;
+  background: rgba(8, 12, 22, 0.45); border: 1px solid var(--border);
+}
+.heat-trio-title {
+  font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--text-dim); margin-bottom: 6px; text-align: center;
+}
+@media (max-width: 900px) { .heat-trio { grid-template-columns: 1fr; } }
 .heat-cap {
   margin-top: 10px; font-size: 12px; line-height: 1.55; color: var(--text-dim);
 }
