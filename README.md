@@ -20,6 +20,10 @@ python3 -m http.server 8000   # or: npx http-server
 …or just open `app/index.html` directly in a browser — no build step, no
 server, no dependencies.
 
+Everything is **colour-coded by sex** — light blue for male, pink for female —
+so each lifter's cards, bars, percentile numbers and charts pick up their own
+colour in every mode.
+
 ## Modes
 
 ### ⇄ Compare
@@ -28,7 +32,9 @@ estimates their 1RM, finds their percentile among raw competitors of the same
 sex near that bodyweight, then tells **Lifter B** (you — your sex and
 bodyweight) exactly what set you'd need (weight × reps @ RPE, reps on a
 slider) to sit at the *same percentile* of your own population. A continuous
-chart shows the required set weight for every rep count.
+chart shows the required set weight for every rep count, and a **strength
+territory** heat map shows where your other two lifts would typically land if
+you matched Lifter A in the compared lift.
 
 ### ◎ My Percentile
 Enter one hard set (weight × reps @ RPE) plus sex and bodyweight. You get:
@@ -39,7 +45,18 @@ Enter one hard set (weight × reps @ RPE) plus sex and bodyweight. You get:
   ("p90 = X kg 1RM = Y kg × N @ RPE"),
 - a **bodyweight leverage** curve: the bodyweight at which your *current*
   1RM would sit at each percentile (i.e. what you'd have to weigh to be a
-  p90 lifter at today's strength).
+  p90 lifter at today's strength),
+- a **strength territory** heat map: holding your selected lift fixed, the 2-D
+  distribution of where the *other two* lifts most likely land (e.g. for bench,
+  a squat × deadlift cloud).
+
+### Σ Total
+Enter all three lifts (each weight × reps @ RPE). The app estimates your
+**squat + bench + deadlift total** and its percentile, with a per-lift
+breakdown. Below that, a **maintain-a-percentile** tool fixes a target total
+(say p90) and lets you drag any one lift — the other two move automatically to
+hold the total constant, so you can see e.g. how a smaller squat "buys" a
+bigger bench and deadlift.
 
 Everything supports kg/lb toggling.
 
@@ -58,6 +75,15 @@ Everything supports kg/lb toggling.
   curve.
 - **1RM estimation**: RTS-style RPE percentage chart (reps 1–12 × RPE 6–10),
   linearly extended beyond the chart.
+- **Total percentile**: derived client-side by summing the three per-lift
+  quantile rows at the lifter's bodyweight (a same-rank model — a p_n total is
+  p_n squat + p_n bench + p_n deadlift). Simple and consistent with the
+  cross-lift equivalents; it slightly overstates the spread of real totals,
+  which regress as a lifter's three lifts rarely rank identically.
+- **Strength-territory heat map**: a Gaussian copula over the marginal
+  percentile tables with an assumed inter-lift rank correlation (ρ ≈ 0.62).
+  Conditioning on the fixed lift's percentile gives a 2-D normal over the
+  other two lifts' latent ranks, mapped back through the tables to kg.
 - **Caveat**: percentiles are relative to *competitive powerlifters*, not
   the general population. A p50 here is already a strong human.
 
@@ -76,7 +102,7 @@ Writes `app/percentiles.json` and `app/percentiles.js` (~125 KB each).
 app/                  the app (open index.html)
   index.html
   style.css
-  app.js              engine (RPE chart, percentile interpolation) + UI + SVG charts
+  app.js              engine (RPE chart, percentile interpolation, copula heat map) + UI + SVG charts
   percentiles.js(on)  precomputed quantile tables
 data-pipeline/
   build_percentiles.py

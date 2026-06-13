@@ -36,11 +36,32 @@ const setWeightFor1RM = (oneRM, reps, rpe) => oneRM * repPct(reps, rpe);
 /* ---------------- percentile engine ---------------- */
 const DATA = PERCENTILE_DATA.data;
 const PCTS = PERCENTILE_DATA.meta.pcts; // [1..99]
+const LIFTS3 = ["squat", "bench", "deadlift"];
+/** the two lifts that aren't `lift`, in canonical order */
+const OTHER_TWO = {
+  squat: ["bench", "deadlift"],
+  bench: ["squat", "deadlift"],
+  deadlift: ["squat", "bench"],
+};
 
 function clamp(x, a, b) { return Math.min(b, Math.max(a, x)); }
 
-/** Quantile row (length 99) interpolated at bodyweight bw. */
+/** bodyweight grid for a sex/lift ("total" shares the squat grid). */
+function gridFor(sex, lift) {
+  return DATA[sex][lift === "total" ? "squat" : lift].bw;
+}
+
+/** Quantile row (length 99) interpolated at bodyweight bw.
+    lift === "total" sums the three lifts' rows (same-percentile model). */
 function rowAt(sex, lift, bw) {
+  if (lift === "total") {
+    const s = rowAt(sex, "squat", bw);
+    const b = rowAt(sex, "bench", bw);
+    const d = rowAt(sex, "deadlift", bw);
+    const out = new Array(s.length);
+    for (let k = 0; k < s.length; k++) out[k] = s[k] + b[k] + d[k];
+    return out;
+  }
   const t = DATA[sex][lift];
   const g = t.bw;
   if (bw <= g[0]) return t.q[0];
@@ -81,7 +102,7 @@ function weightAtPercentile(sex, lift, bw, p) {
 /** Bodyweight at which `oneRM` sits exactly at percentile p.
     Returns {bw, status} — status: "ok" | "below" | "above". */
 function bodyweightForPercentile(sex, lift, p, oneRM) {
-  const g = DATA[sex][lift].bw;
+  const g = gridFor(sex, lift);
   const at = (bw) => weightAtPercentile(sex, lift, bw, p);
   if (oneRM <= at(g[0])) return { bw: g[0], status: "below" };
   if (oneRM >= at(g[g.length - 1])) return { bw: g[g.length - 1], status: "above" };
@@ -94,6 +115,30 @@ function bodyweightForPercentile(sex, lift, p, oneRM) {
   }
   return { bw: g[g.length - 1], status: "above" };
 }
+
+/* ---------------- normal helpers (for the heat map) ---------------- */
+/** Φ⁻¹ — Acklam's rational approximation of the probit function. */
+function probit(p) {
+  if (p <= 0) return -6; if (p >= 1) return 6;
+  const a = [-3.969683028665376e1, 2.209460984245205e2, -2.759285104469687e2, 1.383577518672690e2, -3.066479806614716e1, 2.506628277459239e0];
+  const b = [-5.447609879822406e1, 1.615858368580409e2, -1.556989798598866e2, 6.680131188771972e1, -1.328068155288572e1];
+  const c = [-7.784894002430293e-3, -3.223964580411365e-1, -2.400758277161838e0, -2.549732539343734e0, 4.374664141464968e0, 2.938163982698783e0];
+  const d = [7.784695709041462e-3, 3.224671290700398e-1, 2.445134137142996e0, 3.754408661907416e0];
+  const plow = 0.02425, phigh = 1 - plow; let q, r;
+  if (p < plow) { q = Math.sqrt(-2 * Math.log(p)); return (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1); }
+  if (p <= phigh) { q = p - 0.5; r = q * q; return (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q / (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1); }
+  q = Math.sqrt(-2 * Math.log(1 - p)); return -(((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1);
+}
+function erf(x) {
+  const t = 1 / (1 + 0.3275911 * Math.abs(x));
+  const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x);
+  return x >= 0 ? y : -y;
+}
+const normCdf = (z) => 0.5 * (1 + erf(z / Math.SQRT2));
+
+/** Assumed latent (Gaussian-copula) rank correlation between any two lifts.
+    Real raw powerlifters sit around here; it governs how tight the heat blob is. */
+const RHO = 0.62;
 
 /* ---------------- formatting ---------------- */
 let unit = "kg"; // global display unit; everything internal is kg
@@ -108,6 +153,35 @@ const ordinal = (p) => {
   const s = ["th", "st", "nd", "rd"], v = r % 100;
   return r + (s[(v - 20) % 10] || s[v] || s[0]);
 };
+
+/* ---------------- sex-driven palette ----------------
+   light blue for male, pink for female — everywhere. */
+const SEX_COLORS = {
+  M: { main: "#38bdf8", alt: "#818cf8", glow: "rgba(56,189,248,0.38)", heatBg: "#081424" },
+  F: { main: "#f472b6", alt: "#c084fc", glow: "rgba(244,114,182,0.38)", heatBg: "#1c0a1a" },
+};
+const sexC = (sex) => SEX_COLORS[sex] || SEX_COLORS.M;
+
+/** set --c / --c2 custom props so CSS picks up the sex colors. */
+function paintSex(el, sex) {
+  const c = sexC(sex);
+  el.style.setProperty("--c", c.main);
+  el.style.setProperty("--c2", c.alt);
+  el.style.setProperty("--glow", c.glow);
+}
+/** gradient-fill a text element with the sex colors. */
+function gradText(el, sex) {
+  const c = sexC(sex);
+  el.style.backgroundImage = `linear-gradient(90deg, ${c.main}, ${c.alt})`;
+  el.style.webkitBackgroundClip = "text";
+  el.style.backgroundClip = "text";
+  el.style.color = "transparent";
+}
+/** colour a percentile bar fill with the sex colors. */
+function paintBar(el, sex) {
+  const c = sexC(sex);
+  el.style.backgroundImage = `linear-gradient(90deg, ${c.alt}, ${c.main})`;
+}
 
 /* ============================================================
    SVG line chart (dependency-free)
@@ -258,6 +332,126 @@ function lineChart(el, opts) {
 }
 
 /* ============================================================
+   SVG heat map (Gaussian-copula joint of the other two lifts)
+   ============================================================ */
+const lerpHex = (a, b, t) => {
+  const ah = parseInt(a.slice(1), 16), bh = parseInt(b.slice(1), 16);
+  const ar = ah >> 16 & 255, ag = ah >> 8 & 255, ab = ah & 255;
+  const br = bh >> 16 & 255, bg = bh >> 8 & 255, bb = bh & 255;
+  return `rgb(${Math.round(ar + (br - ar) * t)},${Math.round(ag + (bg - ag) * t)},${Math.round(ab + (bb - ab) * t)})`;
+};
+function heatColor(t, main, bg) {
+  return t < 0.6 ? lerpHex(bg, main, t / 0.6) : lerpHex(main, "#e6f0ff", (t - 0.6) / 0.4);
+}
+
+/**
+ * Heat map of where the two non-fixed lifts land, given the fixed lift's
+ * percentile, for a lifter of this sex/bodyweight.
+ * opts: { sex, bw, fixedLift, fixedPct, axes:[xLift,yLift], actual?:{[lift]:1RM} }
+ */
+function heatMap(el, opts) {
+  const ns = "http://www.w3.org/2000/svg";
+  const W = 560, H = 460, padL = 64, padR = 18, padT = 16, padB = 46;
+  el.innerHTML = "";
+  const c = sexC(opts.sex);
+  const [lx, ly] = opts.axes;
+
+  const z0 = probit(clamp(opts.fixedPct, 0.5, 99.5) / 100);
+  const m = RHO * z0;                 // conditional mean (both axes)
+  const v = 1 - RHO * RHO;            // conditional variance
+  const r = RHO / (1 + RHO);          // conditional correlation between the two
+  const sd = Math.sqrt(v);
+
+  const zLo = clamp(m - 3 * sd, probit(0.01), probit(0.985));
+  const zHi = clamp(m + 3 * sd, probit(0.015), probit(0.99));
+  const N = 30;                       // cells per axis
+  const zAt = (i) => zLo + (zHi - zLo) * (i / (N - 1));
+  const pAtZ = (z) => clamp(normCdf(z) * 100, 1, 99);
+  const kgAt = (lift, z) => weightAtPercentile(opts.sex, lift, opts.bw, pAtZ(z));
+
+  // density grid (unnormalised) + max
+  const dens = [];
+  let maxD = 0;
+  for (let j = 0; j < N; j++) {
+    const zy = zAt(j);
+    const row = [];
+    for (let i = 0; i < N; i++) {
+      const zx = zAt(i);
+      const dx = zx - m, dy = zy - m;
+      const q = (dx * dx - 2 * r * dx * dy + dy * dy) / (v * (1 - r * r));
+      const d = Math.exp(-0.5 * q);
+      row.push(d);
+      if (d > maxD) maxD = d;
+    }
+    dens.push(row);
+  }
+
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  const mk = (tag, attrs, parent = svg) => {
+    const n = document.createElementNS(ns, tag);
+    for (const k in attrs) n.setAttribute(k, attrs[k]);
+    parent.appendChild(n);
+    return n;
+  };
+  const px = (i) => padL + (i / N) * (W - padL - padR);
+  const py = (j) => (H - padB) - (j / N) * (H - padT - padB);   // j=0 at bottom
+  const cellW = (W - padL - padR) / N + 0.6;
+  const cellH = (H - padT - padB) / N + 0.6;
+
+  // background panel
+  mk("rect", { x: padL, y: padT, width: W - padL - padR, height: H - padT - padB, fill: c.heatBg, rx: 6 });
+
+  for (let j = 0; j < N; j++) {
+    for (let i = 0; i < N; i++) {
+      const t = Math.pow(dens[j][i] / maxD, 1.25);   // >1 darkens the tails → crisper blob
+      if (t < 0.025) continue;
+      mk("rect", {
+        x: px(i).toFixed(1), y: (py(j + 1)).toFixed(1),
+        width: cellW.toFixed(1), height: cellH.toFixed(1),
+        fill: heatColor(t, c.main, c.heatBg), opacity: 0.95,
+      });
+    }
+  }
+
+  // axis frame + ticks (labelled in kg)
+  mk("rect", { x: padL, y: padT, width: W - padL - padR, height: H - padT - padB, fill: "none", stroke: "rgba(130,160,230,0.18)", rx: 6 });
+  const tickZs = [0, 0.25, 0.5, 0.75, 1].map((f) => zLo + (zHi - zLo) * f);
+  tickZs.forEach((z, k) => {
+    const fx = padL + ((z - zLo) / (zHi - zLo)) * (W - padL - padR);
+    const fy = (H - padB) - ((z - zLo) / (zHi - zLo)) * (H - padT - padB);
+    mk("text", { x: fx, y: H - padB + 18, "text-anchor": "middle", fill: "#8a96ad", "font-size": 11, "font-family": "monospace" }).textContent = Math.round(toDisp(kgAt(lx, z)));
+    mk("text", { x: padL - 8, y: fy + 4, "text-anchor": "end", fill: "#8a96ad", "font-size": 11, "font-family": "monospace" }).textContent = Math.round(toDisp(kgAt(ly, z)));
+  });
+  mk("text", { x: (padL + W - padR) / 2, y: H - 6, "text-anchor": "middle", fill: "#647089", "font-size": 11, "letter-spacing": "1.5" })
+    .textContent = `${LIFT_NAME[lx]} (${unit})`.toUpperCase();
+  mk("text", { x: 15, y: (padT + H - padB) / 2, "text-anchor": "middle", fill: "#647089", "font-size": 11, "letter-spacing": "1.5", transform: `rotate(-90 15 ${(padT + H - padB) / 2})` })
+    .textContent = `${LIFT_NAME[ly]} (${unit})`.toUpperCase();
+
+  // "typical" peak marker at the conditional mean
+  const peakX = padL + ((m - zLo) / (zHi - zLo)) * (W - padL - padR);
+  const peakY = (H - padB) - ((m - zLo) / (zHi - zLo)) * (H - padT - padB);
+  if (m >= zLo && m <= zHi) {
+    mk("circle", { cx: peakX, cy: peakY, r: 6, fill: "none", stroke: "#fff", "stroke-width": 2, opacity: 0.9 });
+    mk("circle", { cx: peakX, cy: peakY, r: 2, fill: "#fff" });
+    mk("text", { x: peakX + 10, y: peakY - 8, fill: "#fff", "font-size": 11, "font-weight": 700, "font-family": "monospace", opacity: 0.92 }).textContent = "typical";
+  }
+
+  // actual point, if the lifter supplied the other two lifts
+  if (opts.actual && opts.actual[lx] != null && opts.actual[ly] != null) {
+    const zx = probit(clamp(percentileOf(opts.sex, lx, opts.bw, opts.actual[lx]), 0.5, 99.5) / 100);
+    const zy = probit(clamp(percentileOf(opts.sex, ly, opts.bw, opts.actual[ly]), 0.5, 99.5) / 100);
+    const ax = padL + ((clamp(zx, zLo, zHi) - zLo) / (zHi - zLo)) * (W - padL - padR);
+    const ay = (H - padB) - ((clamp(zy, zLo, zHi) - zLo) / (zHi - zLo)) * (H - padT - padB);
+    mk("circle", { cx: ax, cy: ay, r: 7, fill: c.main, opacity: 0.3 });
+    mk("circle", { cx: ax, cy: ay, r: 4, fill: "#fff", stroke: c.main, "stroke-width": 2 });
+    mk("text", { x: ax + 10, y: ay + 4, fill: c.main, "font-size": 11, "font-weight": 700, "font-family": "monospace" }).textContent = "you";
+  }
+
+  el.appendChild(svg);
+}
+
+/* ============================================================
    UI wiring
    ============================================================ */
 const $ = (id) => document.getElementById(id);
@@ -268,9 +462,20 @@ const state = {
   a: { sex: "M", bw: 90, weight: 100, reps: 5, rpe: 10 },
   b: { sex: "F", bw: 63, reps: 5, rpe: 10 },
   m: { sex: "M", bw: 82.5, lift: "squat", weight: 140, reps: 5, rpe: 9, target: 90 },
+  t: {
+    sex: "M", bw: 90, target: 90,
+    lifts: {
+      squat: { weight: 160, reps: 3, rpe: 8 },
+      bench: { weight: 110, reps: 3, rpe: 8 },
+      deadlift: { weight: 200, reps: 3, rpe: 8 },
+    },
+    alloc: null,        // {squat,bench,deadlift} 1RM kg, holds total fixed
+    allocKey: "",       // sex|bw|target fingerprint for auto-reset
+  },
 };
 
-const LIFT_NAME = { squat: "squat", bench: "bench press", deadlift: "deadlift" };
+const LIFT_NAME = { squat: "squat", bench: "bench press", deadlift: "deadlift", total: "total" };
+const LIFT_SHORT = { squat: "Squat", bench: "Bench", deadlift: "Deadlift", total: "Total" };
 
 function segInit(field, onChange) {
   const seg = document.querySelector(`[data-field="${field}"]`);
@@ -293,7 +498,7 @@ function bindNum(id, obj, key, render) {
 function bindSlider(id, outId, obj, key, render) {
   $(id).addEventListener("input", () => {
     obj[key] = parseFloat($(id).value);
-    $(outId).textContent = $(id).value;
+    if (outId) $(outId).textContent = $(id).value;
     render();
   });
 }
@@ -303,13 +508,18 @@ function bindSlider(id, outId, obj, key, render) {
 function renderEquivTiles(elId, sex, bw, pct, reps, rpe, activeLift) {
   const el = $(elId);
   el.innerHTML = "";
-  for (const lift of ["squat", "bench", "deadlift"]) {
+  const c = sexC(sex);
+  for (const lift of LIFTS3) {
     const oneRM = weightAtPercentile(sex, lift, bw, pct);
     const set = setWeightFor1RM(oneRM, reps, rpe);
     const tile = document.createElement("div");
     tile.className = "equiv-tile" + (lift === activeLift ? " equiv-tile-active" : "");
+    if (lift === activeLift) {
+      tile.style.borderColor = c.main;
+      tile.style.background = `linear-gradient(135deg, ${c.main}22, ${c.alt}11)`;
+    }
     tile.innerHTML =
-      `<span class="tile-lift">${lift}</span>` +
+      `<span class="tile-lift"${lift === activeLift ? ` style="color:${c.main}"` : ""}>${lift}</span>` +
       `<span class="tile-1rm">${toDisp(oneRM).toFixed(1)} <em>${unit}</em></span>` +
       `<span class="tile-set">${toDisp(set).toFixed(1)} × ${reps} @ ${rpe}</span>`;
     el.appendChild(tile);
@@ -320,6 +530,16 @@ function renderEquivTiles(elId, sex, bw, pct, reps, rpe, activeLift) {
 function renderCompare() {
   const { a, b } = state;
   const lift = state.lift;
+  const ca = sexC(a.sex), cb = sexC(b.sex);
+
+  // sex-driven paint
+  paintSex($("card-a"), a.sex);
+  paintSex($("card-b"), b.sex);
+  paintBar($("a-bar"), a.sex);
+  paintBar($("b-bar"), b.sex);
+  gradText($("a-pct"), a.sex);
+  $("badge-a").style.background = `linear-gradient(135deg, ${ca.main}, ${ca.alt})`;
+  $("badge-b").style.background = `linear-gradient(135deg, ${cb.main}, ${cb.alt})`;
 
   const a1rm = est1RM(a.weight, a.reps, a.rpe);
   const pct = percentileOf(a.sex, lift, a.bw, a1rm);
@@ -348,18 +568,32 @@ function renderCompare() {
     need.push(setWeightFor1RM(b1rm, r, b.rpe));
   }
   lineChart($("compare-chart"), {
-    series: [{ xs: reps, ys: need.map(toDisp), color: "#f472b6", color2: "#a78bfa", fill: true }],
-    marker: { x: b.reps, y: toDisp(setWeightFor1RM(b1rm, b.reps, b.rpe)), color: "#f472b6", label: `${toDisp(bSet).toFixed(1)} ${unit} × ${b.reps}` },
+    series: [{ xs: reps, ys: need.map(toDisp), color: cb.main, color2: cb.alt, fill: true }],
+    marker: { x: b.reps, y: toDisp(setWeightFor1RM(b1rm, b.reps, b.rpe)), color: cb.main, label: `${toDisp(bSet).toFixed(1)} ${unit} × ${b.reps}` },
     xLabel: "reps", yLabel: `set weight (${unit})`,
     fmtX: (v) => Math.round(v),
     fmtY: (v) => Math.round(v),
     tip: (x, i) => `${Math.round(x)} reps @ RPE ${b.rpe}<br>${need[i] !== undefined ? toDisp(need[i]).toFixed(1) : "—"} ${unit}`,
+  });
+
+  // heat map: if you matched A's percentile in this lift, where your other two land
+  const [hx, hy] = OTHER_TWO[lift];
+  $("compare-heat-sub").textContent =
+    `if your ${LIFT_NAME[lift]} matched ${ordinal(pct)}, where your ${LIFT_NAME[hx]} & ${LIFT_NAME[hy]} most likely land (${b.sex === "M" ? "male" : "female"}, ${toDisp(b.bw).toFixed(0)} ${unit})`;
+  heatMap($("compare-heat"), {
+    sex: b.sex, bw: b.bw, fixedLift: lift, fixedPct: pct, axes: [hx, hy],
   });
 }
 
 /* ---------------- my percentile mode ---------------- */
 function renderMe() {
   const m = state.m;
+  const cm = sexC(m.sex);
+  paintSex($("card-m"), m.sex);
+  paintBar($("m-bar"), m.sex);
+  gradText($("m-pct"), m.sex);
+  $("badge-m").style.background = `linear-gradient(135deg, ${cm.main}, ${cm.alt})`;
+
   const oneRM = est1RM(m.weight, m.reps, m.rpe);
   const pct = percentileOf(m.sex, m.lift, m.bw, oneRM);
 
@@ -378,8 +612,8 @@ function renderMe() {
     ws.push(weightAtPercentile(m.sex, m.lift, m.bw, p));
   }
   lineChart($("me-chart-curve"), {
-    series: [{ xs: ps, ys: ws.map(toDisp), color: "#22d3ee", color2: "#a78bfa", fill: true }],
-    marker: { x: clamp(pct, 1, 99), y: toDisp(oneRM), color: "#f472b6", label: `you — ${ordinal(pct)}` },
+    series: [{ xs: ps, ys: ws.map(toDisp), color: cm.main, color2: cm.alt, fill: true }],
+    marker: { x: clamp(pct, 1, 99), y: toDisp(oneRM), color: cm.main, label: `you — ${ordinal(pct)}` },
     xLabel: "percentile", yLabel: `1RM (${unit})`,
     fmtX: (v) => Math.round(v),
     fmtY: (v) => Math.round(v),
@@ -399,18 +633,18 @@ function renderMe() {
       : `You're already <strong>${fmtW(-gap, 1)}</strong> past it.`);
 
   // chart 2: percentile of the current 1RM at every bodyweight
-  const grid = DATA[m.sex][m.lift].bw;
+  const grid = gridFor(m.sex, m.lift);
   const bws = [], ps2 = [];
   for (let bw = grid[0]; bw <= grid[grid.length - 1] + 1e-9; bw += 1) {
     bws.push(bw);
     ps2.push(percentileOf(m.sex, m.lift, bw, oneRM));
   }
   lineChart($("me-chart-bw"), {
-    series: [{ xs: bws.map(toDisp), ys: ps2, color: "#a78bfa", color2: "#f472b6", fill: true }],
+    series: [{ xs: bws.map(toDisp), ys: ps2, color: cm.alt, color2: cm.main, fill: true }],
     marker: {
       x: toDisp(clamp(m.bw, grid[0], grid[grid.length - 1])),
       y: pct,
-      color: "#22d3ee",
+      color: cm.main,
       label: `you — ${ordinal(pct)} @ ${toDisp(m.bw).toFixed(1)} ${unit}`,
     },
     xLabel: `bodyweight (${unit})`, yLabel: "percentile",
@@ -433,11 +667,110 @@ function renderMe() {
           `stays above the ${ordinal(m.target)} percentile. Strong everywhere.`
         : `Even at the lightest bodyweights in the data, <strong>${fmtW(oneRM, 1)}</strong> ` +
           `doesn't reach the ${ordinal(m.target)} percentile.`;
+
+  // heat map: where the other two lifts most likely land given this lift
+  const [hx, hy] = OTHER_TWO[m.lift];
+  $("me-heat-sub").textContent =
+    `given your ${ordinal(pct)} ${LIFT_NAME[m.lift]}, where your ${LIFT_NAME[hx]} & ${LIFT_NAME[hy]} most likely land`;
+  heatMap($("me-heat"), {
+    sex: m.sex, bw: m.bw, fixedLift: m.lift, fixedPct: pct, axes: [hx, hy],
+  });
 }
 
+/* ---------------- total mode ---------------- */
+function lift1RM(L) { return est1RM(L.weight, L.reps, L.rpe); }
+
+/** reset the maintain-allocator to "each lift at the target percentile". */
+function resetAlloc(t) {
+  t.alloc = {};
+  for (const lift of LIFTS3) t.alloc[lift] = weightAtPercentile(t.sex, lift, t.bw, t.target);
+  t.allocKey = `${t.sex}|${t.bw.toFixed(2)}|${t.target}`;
+}
+
+/** move `changed` lift to newVal (kg); the other two absorb the opposite
+    delta equally so the total stays fixed, clamped to the p1..p99 range. */
+function redistribute(t, changed, newVal) {
+  const a = t.alloc;
+  const lo = (l) => weightAtPercentile(t.sex, l, t.bw, 1);
+  const hi = (l) => weightAtPercentile(t.sex, l, t.bw, 99);
+  newVal = clamp(newVal, lo(changed), hi(changed));
+  let give = a[changed] - newVal;   // amount to spread onto the others (kg)
+  a[changed] = newVal;
+  const others = LIFTS3.filter((l) => l !== changed);
+  let rem = give;
+  others.forEach((l, i) => {
+    const share = rem / (others.length - i);
+    const nv = clamp(a[l] + share, lo(l), hi(l));
+    rem -= (nv - a[l]);
+    a[l] = nv;
+  });
+  // any leftover (everything clamped) goes back to the lift we moved
+  if (Math.abs(rem) > 1e-6) a[changed] = clamp(a[changed] + rem, lo(changed), hi(changed));
+}
+
+function renderTotal() {
+  const t = state.t;
+  const ct = sexC(t.sex);
+  paintSex($("card-t"), t.sex);
+  paintSex($("card-maintain"), t.sex);
+  paintBar($("t-bar"), t.sex);
+  gradText($("t-pct"), t.sex);
+  $("badge-t").style.background = `linear-gradient(135deg, ${ct.main}, ${ct.alt})`;
+
+  // --- entered lifts → total percentile ---
+  let total = 0;
+  const oneRMs = {};
+  for (const lift of LIFTS3) {
+    const o = lift1RM(t.lifts[lift]);
+    oneRMs[lift] = o;
+    total += o;
+    const p = percentileOf(t.sex, lift, t.bw, o);
+    $(`t-${lift}-pct`).textContent = ordinal(p);
+    $(`t-${lift}-1rm`).textContent = `${toDisp(o).toFixed(0)} ${unit} 1RM`;
+  }
+  const totalPct = percentileOf(t.sex, "total", t.bw, total);
+  $("t-1rm").textContent = fmtW(total, 0);
+  $("t-pct").textContent = ordinal(totalPct);
+  $("t-pct-note").textContent =
+    `S+B+D total of ${t.sex === "M" ? "male" : "female"} raw competitors near ${toDisp(t.bw).toFixed(0)} ${unit}`;
+  $("t-bar").style.width = `${clamp(totalPct, 0, 100)}%`;
+
+  // --- maintain-percentile allocator ---
+  const key = `${t.sex}|${t.bw.toFixed(2)}|${t.target}`;
+  if (!t.alloc || t.allocKey !== key) resetAlloc(t);
+
+  const allocTotal = LIFTS3.reduce((s, l) => s + t.alloc[l], 0);
+  const allocPct = percentileOf(t.sex, "total", t.bw, allocTotal);
+  $("maintain-total").textContent = fmtW(allocTotal, 0);
+  $("maintain-total-pct").textContent = ordinal(allocPct);
+
+  for (const lift of LIFTS3) {
+    const o = t.alloc[lift];
+    const p = percentileOf(t.sex, lift, t.bw, o);
+    const lo = weightAtPercentile(t.sex, lift, t.bw, 1);
+    const hi = weightAtPercentile(t.sex, lift, t.bw, 99);
+    const sl = $(`alloc-${lift}-slider`);
+    sl.min = toDisp(lo).toFixed(1);
+    sl.max = toDisp(hi).toFixed(1);
+    sl.step = unit === "kg" ? 2.5 : 5;
+    sl.value = toDisp(o).toFixed(1);
+    $(`alloc-${lift}-val`).textContent = fmtW(o, 0);
+    $(`alloc-${lift}-pct`).textContent = ordinal(p);
+    const bar = $(`alloc-${lift}-bar`);
+    bar.style.width = `${clamp(p, 0, 100)}%`;
+    paintBar(bar, t.sex);
+  }
+  $("maintain-note").innerHTML =
+    `Holding a <strong>${ordinal(t.target)}</strong> total (<strong>${fmtW(allocTotal, 0)}</strong>): ` +
+    `drag any lift and the other two move to keep the total fixed. ` +
+    `A bigger squat &ldquo;buys&rdquo; a smaller bench &amp; deadlift, and vice-versa.`;
+}
+
+/* ---------------- mode dispatch ---------------- */
 function renderAll() {
   if (state.mode === "compare") renderCompare();
-  else renderMe();
+  else if (state.mode === "me") renderMe();
+  else renderTotal();
 }
 
 /* ---------------- init ---------------- */
@@ -447,6 +780,10 @@ function refreshNumberInputs() {
   $("b-bw").value = +toDisp(state.b.bw).toFixed(1);
   $("m-bw").value = +toDisp(state.m.bw).toFixed(1);
   $("m-weight").value = +toDisp(state.m.weight).toFixed(1);
+  $("t-bw").value = +toDisp(state.t.bw).toFixed(1);
+  for (const lift of LIFTS3) {
+    $(`t-${lift}-weight`).value = +toDisp(state.t.lifts[lift].weight).toFixed(1);
+  }
   document.querySelectorAll(".unit-label").forEach((el) => (el.textContent = unit));
 }
 
@@ -485,12 +822,14 @@ function init() {
   segInit("lift", (v) => { state.lift = v; renderAll(); });
   segInit("m-sex", (v) => { state.m.sex = v; renderAll(); });
   segInit("m-lift", (v) => { state.m.lift = v; renderAll(); });
+  segInit("t-sex", (v) => { state.t.sex = v; renderAll(); });
 
   bindNum("a-bw", state.a, "bw", renderAll);
   bindNum("a-weight", state.a, "weight", renderAll);
   bindNum("b-bw", state.b, "bw", renderAll);
   bindNum("m-bw", state.m, "bw", renderAll);
   bindNum("m-weight", state.m, "weight", renderAll);
+  bindNum("t-bw", state.t, "bw", renderAll);
 
   bindSlider("a-reps", "a-reps-out", state.a, "reps", renderAll);
   bindSlider("a-rpe", "a-rpe-out", state.a, "rpe", renderAll);
@@ -499,6 +838,25 @@ function init() {
   bindSlider("m-reps", "m-reps-out", state.m, "reps", renderAll);
   bindSlider("m-rpe", "m-rpe-out", state.m, "rpe", renderAll);
   bindSlider("m-target", "m-target-out", state.m, "target", renderAll);
+
+  // total mode: three lift entries
+  for (const lift of LIFTS3) {
+    bindNum(`t-${lift}-weight`, state.t.lifts[lift], "weight", renderAll);
+    bindSlider(`t-${lift}-reps`, `t-${lift}-reps-out`, state.t.lifts[lift], "reps", renderAll);
+    bindSlider(`t-${lift}-rpe`, `t-${lift}-rpe-out`, state.t.lifts[lift], "rpe", renderAll);
+  }
+  bindSlider("t-target", "t-target-out", state.t, "target", () => {
+    resetAlloc(state.t);   // new target → fresh balanced allocation
+    renderAll();
+  });
+  // maintain allocator sliders (operate in display units)
+  for (const lift of LIFTS3) {
+    $(`alloc-${lift}-slider`).addEventListener("input", (e) => {
+      if (!state.t.alloc) resetAlloc(state.t);
+      redistribute(state.t, lift, fromDisp(parseFloat(e.target.value)));
+      renderTotal();
+    });
+  }
 
   // footer sample counts
   const c = PERCENTILE_DATA.meta.counts;
@@ -520,5 +878,5 @@ if (typeof document !== "undefined" && typeof PERCENTILE_DATA !== "undefined") {
 
 /* node test hook */
 if (typeof module !== "undefined") {
-  module.exports = { repPct, est1RM, percentileOf, weightAtPercentile, bodyweightForPercentile };
+  module.exports = { repPct, est1RM, percentileOf, weightAtPercentile, bodyweightForPercentile, probit, normCdf, rowAt };
 }
