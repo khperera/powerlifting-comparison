@@ -28,6 +28,7 @@
     <nav class="seg" id="modeTabs">
       <button data-mode="compare" class="active">⇄ Compare</button>
       <button data-mode="me">◎ My Percentile</button>
+      <button data-mode="total">Σ Total</button>
     </nav>
   </div>
 </header>
@@ -37,9 +38,9 @@
 <section id="mode-compare" class="mode active">
   <div class="compare-grid">
 
-    <div class="card lifter-a">
+    <div class="card lifter-card" id="card-a">
       <div class="card-head">
-        <span class="badge badge-a">LIFTER A</span>
+        <span class="badge" id="badge-a">LIFTER A</span>
         <span class="card-sub">the lifter to match</span>
       </div>
 
@@ -87,17 +88,17 @@
         </div>
         <div class="stat">
           <span class="stat-label">percentile</span>
-          <span class="stat-value grad-a" id="a-pct">—</span>
+          <span class="stat-value pct-num" id="a-pct">—</span>
         </div>
       </div>
-      <div class="pct-bar"><div class="pct-fill fill-a" id="a-bar"></div></div>
+      <div class="pct-bar"><div class="pct-fill" id="a-bar"></div></div>
     </div>
 
     <div class="vs-divider"><span>VS</span></div>
 
-    <div class="card lifter-b">
+    <div class="card lifter-card" id="card-b">
       <div class="card-head">
-        <span class="badge badge-b">LIFTER B</span>
+        <span class="badge" id="badge-b">LIFTER B</span>
         <span class="card-sub">you — what do you need?</span>
       </div>
 
@@ -126,10 +127,10 @@
 
       <div class="equiv-box">
         <p class="equiv-lead">to match Lifter A's <strong id="b-pct-echo">—</strong> percentile <span id="b-lift-echo"></span>:</p>
-        <p class="equiv-main"><span id="b-target">—</span></p>
+        <p class="equiv-main pct-num" id="b-target-wrap"><span id="b-target">—</span></p>
         <p class="equiv-sub">≈ <span id="b-1rm">—</span> 1RM equivalent</p>
       </div>
-      <div class="pct-bar"><div class="pct-fill fill-b" id="b-bar"></div></div>
+      <div class="pct-bar"><div class="pct-fill" id="b-bar"></div></div>
 
       <div class="lift-equivs" id="b-equivs">
         <p class="equivs-head">same percentile, all three lifts (for you):</p>
@@ -142,14 +143,20 @@
     <h3>Required set weight vs. reps <span class="h3-sub">to match Lifter A's percentile, at your bodyweight (RPE as set above)</span></h3>
     <div id="compare-chart" class="chart"></div>
   </div>
+
+  <div class="card chart-card">
+    <h3>Strength territory <span class="h3-sub" id="compare-heat-sub">where your other two lifts most likely land</span></h3>
+    <div id="compare-heat" class="chart heat"></div>
+    <p class="heat-cap">Brighter = more of these lifters live there. The white ring is the <strong>typical</strong> pairing for that level — a Gaussian-copula model over the marginal percentile tables.</p>
+  </div>
 </section>
 
 <!-- ============ MODE 2: MY PERCENTILE ============ -->
 <section id="mode-me" class="mode">
   <div class="me-grid">
-    <div class="card">
+    <div class="card lifter-card" id="card-m">
       <div class="card-head">
-        <span class="badge badge-b">YOUR SET</span>
+        <span class="badge" id="badge-m">YOUR SET</span>
         <span class="card-sub">one hard set → full picture</span>
       </div>
 
@@ -197,11 +204,11 @@
         </div>
         <div class="hero-stat">
           <span class="stat-label">your percentile</span>
-          <span class="hero-value grad-b" id="m-pct">—</span>
+          <span class="hero-value pct-num" id="m-pct">—</span>
           <span class="hero-note" id="m-pct-note"></span>
         </div>
       </div>
-      <div class="pct-bar"><div class="pct-fill fill-b" id="m-bar"></div></div>
+      <div class="pct-bar"><div class="pct-fill" id="m-bar"></div></div>
 
       <div class="lift-equivs">
         <p class="equivs-head">your other lifts <em>should</em> be (same percentile):</p>
@@ -224,6 +231,115 @@
         <h3>Bodyweight leverage <span class="h3-sub">where your current 1RM ranks at every bodyweight</span></h3>
         <div id="me-chart-bw" class="chart"></div>
         <p class="callout" id="m-bw-text">—</p>
+      </div>
+
+      <div class="card chart-card">
+        <h3>Strength territory <span class="h3-sub" id="me-heat-sub">where your other two lifts most likely land</span></h3>
+        <div id="me-heat" class="chart heat"></div>
+        <p class="heat-cap">Brighter = more lifters live there. The white ring is the <strong>typical</strong> pairing for a lifter at your level.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MODE 3: TOTAL ============ -->
+<section id="mode-total" class="mode">
+  <div class="me-grid">
+    <div class="card lifter-card" id="card-t">
+      <div class="card-head">
+        <span class="badge" id="badge-t">YOUR TOTAL</span>
+        <span class="card-sub">all three lifts → one number</span>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Sex</label>
+          <div class="seg" data-field="t-sex">
+            <button data-val="M" class="active">Male</button>
+            <button data-val="F">Female</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>Bodyweight <span class="unit-label">kg</span></label>
+          <input type="number" id="t-bw" value="90" min="30" max="250" step="0.5">
+        </div>
+      </div>
+
+      <div class="tlift" data-lift="squat">
+        <div class="tlift-head"><span class="tlift-name">Squat</span><span class="tlift-meta"><span class="tlift-1rm" id="t-squat-1rm">—</span><span class="tlift-pct" id="t-squat-pct">—</span></span></div>
+        <div class="field"><label>Set weight <span class="unit-label">kg</span></label><input type="number" id="t-squat-weight" value="160" min="1" step="2.5"></div>
+        <div class="tlift-sliders">
+          <div class="field slider-field"><label>Reps <output id="t-squat-reps-out">3</output></label><input type="range" id="t-squat-reps" min="1" max="12" value="3" step="1"></div>
+          <div class="field slider-field"><label>RPE <output id="t-squat-rpe-out">8</output></label><input type="range" id="t-squat-rpe" min="6" max="10" value="8" step="0.5"></div>
+        </div>
+      </div>
+
+      <div class="tlift" data-lift="bench">
+        <div class="tlift-head"><span class="tlift-name">Bench</span><span class="tlift-meta"><span class="tlift-1rm" id="t-bench-1rm">—</span><span class="tlift-pct" id="t-bench-pct">—</span></span></div>
+        <div class="field"><label>Set weight <span class="unit-label">kg</span></label><input type="number" id="t-bench-weight" value="110" min="1" step="2.5"></div>
+        <div class="tlift-sliders">
+          <div class="field slider-field"><label>Reps <output id="t-bench-reps-out">3</output></label><input type="range" id="t-bench-reps" min="1" max="12" value="3" step="1"></div>
+          <div class="field slider-field"><label>RPE <output id="t-bench-rpe-out">8</output></label><input type="range" id="t-bench-rpe" min="6" max="10" value="8" step="0.5"></div>
+        </div>
+      </div>
+
+      <div class="tlift" data-lift="deadlift">
+        <div class="tlift-head"><span class="tlift-name">Deadlift</span><span class="tlift-meta"><span class="tlift-1rm" id="t-deadlift-1rm">—</span><span class="tlift-pct" id="t-deadlift-pct">—</span></span></div>
+        <div class="field"><label>Set weight <span class="unit-label">kg</span></label><input type="number" id="t-deadlift-weight" value="200" min="1" step="2.5"></div>
+        <div class="tlift-sliders">
+          <div class="field slider-field"><label>Reps <output id="t-deadlift-reps-out">3</output></label><input type="range" id="t-deadlift-reps" min="1" max="12" value="3" step="1"></div>
+          <div class="field slider-field"><label>RPE <output id="t-deadlift-rpe-out">8</output></label><input type="range" id="t-deadlift-rpe" min="6" max="10" value="8" step="0.5"></div>
+        </div>
+      </div>
+
+      <div class="hero-result">
+        <div class="hero-stat">
+          <span class="stat-label">estimated total</span>
+          <span class="hero-value" id="t-1rm">—</span>
+        </div>
+        <div class="hero-stat">
+          <span class="stat-label">total percentile</span>
+          <span class="hero-value pct-num" id="t-pct">—</span>
+          <span class="hero-note" id="t-pct-note"></span>
+        </div>
+      </div>
+      <div class="pct-bar"><div class="pct-fill" id="t-bar"></div></div>
+    </div>
+
+    <div class="stack">
+      <div class="card chart-card" id="card-maintain">
+        <h3>Maintain a total percentile <span class="h3-sub">drag one lift, the others compensate to hold the total</span></h3>
+
+        <div class="field slider-field inline-slider">
+          <label>Target total percentile <output id="t-target-out">90</output></label>
+          <input type="range" id="t-target" min="1" max="99" value="90" step="1">
+        </div>
+
+        <div class="maintain-summary">
+          <span class="maintain-total-label">held total</span>
+          <span class="maintain-total-val" id="maintain-total">—</span>
+          <span class="maintain-total-pct pct-num" id="maintain-total-pct">—</span>
+        </div>
+
+        <div class="alloc">
+          <div class="alloc-row" data-lift="squat">
+            <div class="alloc-top"><span class="alloc-name">Squat</span><span class="alloc-pct" id="alloc-squat-pct">—</span><span class="alloc-val" id="alloc-squat-val">—</span></div>
+            <div class="pct-bar"><div class="pct-fill" id="alloc-squat-bar"></div></div>
+            <input type="range" id="alloc-squat-slider" class="alloc-slider" min="0" max="400" value="0" step="2.5">
+          </div>
+          <div class="alloc-row" data-lift="bench">
+            <div class="alloc-top"><span class="alloc-name">Bench</span><span class="alloc-pct" id="alloc-bench-pct">—</span><span class="alloc-val" id="alloc-bench-val">—</span></div>
+            <div class="pct-bar"><div class="pct-fill" id="alloc-bench-bar"></div></div>
+            <input type="range" id="alloc-bench-slider" class="alloc-slider" min="0" max="400" value="0" step="2.5">
+          </div>
+          <div class="alloc-row" data-lift="deadlift">
+            <div class="alloc-top"><span class="alloc-name">Deadlift</span><span class="alloc-pct" id="alloc-deadlift-pct">—</span><span class="alloc-val" id="alloc-deadlift-val">—</span></div>
+            <div class="pct-bar"><div class="pct-fill" id="alloc-deadlift-bar"></div></div>
+            <input type="range" id="alloc-deadlift-slider" class="alloc-slider" min="0" max="400" value="0" step="2.5">
+          </div>
+        </div>
+
+        <p class="callout" id="maintain-note">—</p>
       </div>
     </div>
   </div>
